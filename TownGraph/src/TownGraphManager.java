@@ -1,264 +1,280 @@
-import java.util.*;
-import java.io.*;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Scanner;
 
 /**
- * Class: CMSC204 
- * Instructor: Gary Thai
- * Description: 
- * This project implements a graph-based application that models a network
- * of towns and roads. The system uses a Graph data structure to represent
- * towns as vertices and roads as edges connecting them.
- * 
- * The Town class represents each location in the network and implements
- * Comparable to allow sorting and comparison based on town names.
- * 
- * The Road class represents connections between towns, storing the
- * distance and name of each road. It also implements Comparable and
- * treats roads as undirected edges.
- * 
- * The Graph class implements the GraphInterface and manages the overall
- * structure using vertices and edges. It supports operations such as
- * adding towns and roads, checking connections, and computing the
- * shortest path between towns using Dijkstra’s Shortest Path algorithm.
- * 
- * The TownGraphManager class serves as a higher-level interface to the
- * graph, allowing users to add towns and roads, read data from files,
- * and find the shortest path between two towns.
- * 
- * The application also includes JUnit test classes to verify the
- * functionality of all components and ensure correctness of the
- * implementation.
- * 
- * Due: 5/3/2026
- * Platform/compiler: Eclipse / javac
- * 
- * I pledge that I have completed the programming assignment 
- * independently. I have not copied code from any student or 
- * external source, nor have I shared my code with others.
+ * TownGraphManager.java
  *
- * Name: Armel Daryl Kelodjoue Nguetchouang
+ * A simple, string-based front end for the {@link Graph}. The GUI and other
+ * callers work with plain town and road names; this class turns those names
+ * into {@link Town} and {@link Road} objects and forwards the work to the
+ * graph.
+ *
+ * It can also load a whole road network from a text file where each line has
+ * the form:
+ * <pre>
+ *     RoadName,Miles;TownA;TownB
+ *     e.g.  I270-N,14;Frederick;Clarksburg
+ * </pre>
+ *
+ * @author Armel Daryl Kelodjoue Nguetchouang
  */
-
 public class TownGraphManager implements TownGraphManagerInterface
 {
-	private Graph graph;
-	
-	/**
-	 * Default no-arg constructor initializes graph to represent town map
-	 */
+	/** The underlying graph of towns and roads. */
+	private final Graph graph;
+
+	/** Creates a manager with an empty road network. */
 	public TownGraphManager()
 	{
 		graph = new Graph();
 	}
-	
+
+	// ------------------------------------------------------------------
+	// Towns
+	// ------------------------------------------------------------------
+
 	/**
-	 * Adds a road with 2 towns and a road name
-	 * @param town1 name of town 1 (lastname, firstname)
-	 * @param town2 name of town 2 (lastname, firstname)
-	 * @param roadName name of road
-	 * @return true if the road was added successfully
+	 * Adds a town to the network.
+	 *
+	 * @param v the town's name
+	 * @return true if the town was added, false if it already exists or the
+	 *         name is blank
 	 */
 	@Override
-	public boolean addRoad(String town1, String town2, int weight, String roadName) 
+	public boolean addTown(String v)
 	{
-		Town t1a = getTown(town1);
-		Town t2a = getTown(town2);
-		graph.addEdge(t1a, t2a, weight, roadName);
-		return true;
+		if (v == null || v.isBlank())
+			return false;
+		return graph.addVertex(new Town(v.trim()));
 	}
 
 	/**
-	 * Returns the name of the road that both towns are connected through
-	 * @param town1 name of town 1 (lastname, firstname)
-	 * @param town2 name of town 2 (lastname, firstname)
-	 * @return name of road if town 1 and town2 are in the same road, returns null if not
+	 * Looks up a town by name.
+	 *
+	 * @param name the town's name
+	 * @return the matching Town, or null if no town has that name
 	 */
 	@Override
-	public String getRoad(String town1, String town2) 
+	public Town getTown(String name)
 	{
-		Town t1a = getTown(town1);
-		Town t2a = getTown(town2);
-		Road road = graph.getEdge(t1a, t2a);
-		for (Road r : graph.edgesOf(t1a))
-		{
-			if (r.getDestination().equals(t2a) || r.getSource().equals(t2a))
-				return road.getName();
-		}
-		return null;
+		if (name == null)
+			return null;
+		Town town = new Town(name.trim());
+		return graph.containsVertex(town) ? town : null;
 	}
 
 	/**
-	 * Adds a town to the graph
-	 * @param v the town's name  (lastname, firstname)
-	 * @return true if the town was successfully added, false if not
+	 * @param v the town's name
+	 * @return true if a town with that name exists
 	 */
 	@Override
-	public boolean addTown(String v) 
+	public boolean containsTown(String v)
 	{
-		Town t1a = new Town(v);
-		return graph.addVertex(t1a);
+		return getTown(v) != null;
 	}
 
 	/**
-	 * Gets a town with a given name
-	 * @param name the town's name 
-	 * @return the Town specified by the name, or null if town does not exist
-	 */
-	
-	public Town getTown(String name) 
-	{
-		Town t1a = new Town(name);
-		for (Town town : graph.vertexSet())
-		{
-			if (t1a.equals(town))
-			{
-				return town;
-			}
-		}
-		return null;
-	}
-
-	
-	/**
-	 * Determines if a town is already in the graph
-	 * @param v the town's name 
-	 * @return true if the town is in the graph, false if not
+	 * Removes a town and every road connected to it.
+	 *
+	 * @param v the town's name
+	 * @return true if the town existed and was removed
 	 */
 	@Override
-	public boolean containsTown(String v) 
+	public boolean deleteTown(String v)
 	{
-		Town t1a = new Town(v);
-		return graph.containsVertex(t1a);
+		return graph.removeVertex(getTown(v));
 	}
 
 	/**
-	 * Determines if a road is in the graph
-	 * @param town1 name of town 1 (lastname, firstname)
-	 * @param town2 name of town 2 (lastname, firstname)
-	 * @return true if the road is in the graph, false if not
+	 * @return the names of all towns, sorted alphabetically
 	 */
 	@Override
-	public boolean containsRoadConnection(String town1, String town2) 
-	{
-		Town t1a = getTown(town1);
-		Town t2a = getTown(town2);
-		return graph.containsEdge(t1a, t2a);
-	}
-
-	/**
-	 * Creates an arraylist of all road titles in sorted order by road name
-	 * @return an arraylist of all road titles in sorted order by road name
-	 */
-	@Override
-	public ArrayList<String> allRoads() 
-	{
-		ArrayList<String> roads = new ArrayList<>();
-		for (Road road : graph.edgeSet())
-		{
-			roads.add(road.getName());
-		}
-		Collections.sort(roads);
-		return roads;
-	}
-
-	/**
-	 * Deletes a road from the graph
-	 * @param town1 name of town 1 (lastname, firstname)
-	 * @param town2 name of town 2 (lastname, firstname)
-	 * @param roadName the road name
-	 * @return true if the road was successfully deleted, false if not
-	 */
-	@Override
-	public boolean deleteRoadConnection(String town1, String town2, String road) 
-	{
-		Town t1a = getTown(town1);
-		Town t2a = getTown(town2);
-		
-		if (graph.containsEdge(t1a, t2a))
-		{
-			Road road1 = graph.getEdge(t1a, t2a);
-			Road road2 = graph.removeEdge(t1a, t2a, road1.getWeight(), road);
-			if (road2.equals(road1))
-				return true;
-		}
-		return false;
-	}
-
-	/**
-	 * Deletes a town from the graph
-	 * @param v name of town (lastname, firstname)
-	 * @return true if the town was successfully deleted, false if not
-	 */
-	@Override
-	public boolean deleteTown(String v) 
-	{
-		Town town1a = new Town(v);
-		return graph.removeVertex(town1a);
-	}
-
-	/**
-	 * Creates an arraylist of all towns in alphabetical order (last name, first name)
-	 * @return an arraylist of all towns in alphabetical order (last name, first name)
-	 */
-	@Override
-	public ArrayList<String> allTowns() 
+	public ArrayList<String> allTowns()
 	{
 		ArrayList<String> towns = new ArrayList<>();
 		for (Town town : graph.vertexSet())
-		{
 			towns.add(town.getName());
-		}
 		Collections.sort(towns);
 		return towns;
 	}
 
+	// ------------------------------------------------------------------
+	// Roads
+	// ------------------------------------------------------------------
+
 	/**
-	 * Returns the shortest path from town 1 to town 2
-	 * @param town1 name of town 1 (lastname, firstname)
-	 * @param town2 name of town 2 (lastname, firstname)
-	 * @return an Arraylist of roads connecting the two towns together, null if the
-	 * towns have no path to connect them.
+	 * Adds a road between two existing towns.
+	 *
+	 * @param town1    name of one town
+	 * @param town2    name of the other town
+	 * @param weight   length of the road in miles (must not be negative)
+	 * @param roadName name of the road
+	 * @return true if the road was added, false if a town doesn't exist,
+	 *         the distance is negative, or the name is blank
 	 */
 	@Override
-	public ArrayList<String> getPath(String town1, String town2) 
+	public boolean addRoad(String town1, String town2, int weight, String roadName)
 	{
-		Town t1a = getTown(town1);
-		Town t2a = getTown(town2);
-		ArrayList<String> path = graph.shortestPath(t1a, t2a);
-		return path;
+		Town t1 = getTown(town1);
+		Town t2 = getTown(town2);
+		if (t1 == null || t2 == null || weight < 0 || roadName == null || roadName.isBlank())
+			return false;
+
+		graph.addEdge(t1, t2, weight, roadName.trim());
+		return true;
 	}
-	
+
 	/**
-	 * Method to populate the town graph
-	 * @param input - File that contains the towns
-	 * @throws FileNotFoundException if the file is NOT found
+	 * Returns the name of a road that connects two towns.
+	 *
+	 * @param town1 name of one town
+	 * @param town2 name of the other town
+	 * @return the road's name, or null if the towns are not directly connected
+	 */
+	@Override
+	public String getRoad(String town1, String town2)
+	{
+		Road road = graph.getEdge(getTown(town1), getTown(town2));
+		return road == null ? null : road.getName();
+	}
+
+	/**
+	 * @param town1 name of one town
+	 * @param town2 name of the other town
+	 * @return true if a road directly connects the two towns
+	 */
+	@Override
+	public boolean containsRoadConnection(String town1, String town2)
+	{
+		return graph.containsEdge(getTown(town1), getTown(town2));
+	}
+
+	/**
+	 * Removes the named road between two towns.
+	 *
+	 * @param town1 name of one town
+	 * @param town2 name of the other town
+	 * @param road  name of the road to remove
+	 * @return true if the road existed and was removed
+	 */
+	@Override
+	public boolean deleteRoadConnection(String town1, String town2, String road)
+	{
+		// weight -1 means "any distance"; only the towns and road name must match
+		return graph.removeEdge(getTown(town1), getTown(town2), -1, road) != null;
+	}
+
+	/**
+	 * @return the names of all roads, sorted alphabetically
+	 */
+	@Override
+	public ArrayList<String> allRoads()
+	{
+		ArrayList<String> roads = new ArrayList<>();
+		for (Road road : graph.edgeSet())
+			roads.add(road.getName());
+		Collections.sort(roads);
+		return roads;
+	}
+
+	// ------------------------------------------------------------------
+	// Shortest path
+	// ------------------------------------------------------------------
+
+	/**
+	 * Finds the shortest route between two towns.
+	 * Each step reads like "Rockville via MD189 to Potomac 6 mi".
+	 *
+	 * @param town1 name of the starting town
+	 * @param town2 name of the destination town
+	 * @return the steps of the route, or an empty list if there is no route
+	 */
+	@Override
+	public ArrayList<String> getPath(String town1, String town2)
+	{
+		return graph.shortestPath(getTown(town1), getTown(town2));
+	}
+
+	/**
+	 * Returns the total length of the shortest route between two towns.
+	 *
+	 * @param town1 name of the starting town
+	 * @param town2 name of the destination town
+	 * @return total miles, or -1 if there is no route
+	 */
+	public int getPathDistance(String town1, String town2)
+	{
+		return graph.shortestDistance(getTown(town1), getTown(town2));
+	}
+
+	// ------------------------------------------------------------------
+	// File loading
+	// ------------------------------------------------------------------
+
+	/**
+	 * Loads towns and roads from a text file. Each non-blank line must have
+	 * the form {@code RoadName,Miles;TownA;TownB}. Towns are created
+	 * automatically the first time they appear.
+	 *
+	 * @param input the file to read
+	 * @throws FileNotFoundException    if the file does not exist
+	 * @throws IllegalArgumentException if a line is not in the expected format
+	 *                                  (the message gives the line number)
 	 */
 	public void populateTownGraph(File input) throws FileNotFoundException
 	{
-		ArrayList<String> record = new ArrayList<>();
 		if (input == null || !input.exists())
+			throw new FileNotFoundException(input == null ? "No file given" : input.getPath());
+
+		// try-with-resources closes the file even if a line is bad
+		try (Scanner scanner = new Scanner(input))
 		{
-			throw new FileNotFoundException();
+			int lineNumber = 0;
+			while (scanner.hasNextLine())
+			{
+				String line = scanner.nextLine().trim();
+				lineNumber++;
+				if (line.isEmpty())
+					continue;   // skip blank lines
+
+				parseLine(line, lineNumber);
+			}
 		}
-		
-		Scanner scanner = new Scanner(input);
-		while (scanner.hasNextLine())
+	}
+
+	/**
+	 * Parses one line of a road file and adds its towns and road.
+	 *
+	 * @param line       the text of the line, e.g. "MD97,8;Rockville;Olney"
+	 * @param lineNumber the line's position in the file (for error messages)
+	 */
+	private void parseLine(String line, int lineNumber)
+	{
+		String[] parts = line.split(";");
+		int comma = parts[0].lastIndexOf(',');
+		if (parts.length != 3 || comma < 0)
+			throw new IllegalArgumentException("Line " + lineNumber
+					+ ": expected RoadName,Miles;TownA;TownB but got \"" + line + "\"");
+
+		String roadName = parts[0].substring(0, comma).trim();
+		String source = parts[1].trim();
+		String destination = parts[2].trim();
+		int miles;
+		try
 		{
-			record.add(scanner.nextLine());
+			miles = Integer.parseInt(parts[0].substring(comma + 1).trim());
 		}
-		for (String line : record)
+		catch (NumberFormatException e)
 		{
-			String[] split = line.split(";");
-			int deliminator = split[0].indexOf(",");
-			String rName = split[0].substring(0, deliminator);
-			String weight = split[0].substring(deliminator+1,split[0].length());
-			String source = split[1];
-			String destination = split[2];
-			
-			addTown(source);
-			addTown(destination);
-			addRoad(source, destination, Integer.parseInt(weight), rName);
+			throw new IllegalArgumentException("Line " + lineNumber
+					+ ": distance must be a whole number in \"" + line + "\"");
 		}
-		scanner.close();
+
+		addTown(source);
+		addTown(destination);
+		addRoad(source, destination, miles, roadName);
 	}
 }

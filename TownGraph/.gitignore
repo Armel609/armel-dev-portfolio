@@ -1,0 +1,5 @@
+# Compiled classes (Eclipse output / javac build folders)
+bin/
+out/
+*.class
+lib/

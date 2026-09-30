@@ -1,3 +1,5 @@
+// TownGraphManagerInterface.java - The interface that TownGraphManager implements.
+// Provided as starter code by the CMSC 204 course (not modified).
 
 import java.util.*;
 

@@ -1,6 +1,3 @@
-
-
-
 import static org.junit.Assert.*;
 
 import java.util.ArrayList;
@@ -10,6 +7,14 @@ import org.junit.Before;
 import org.junit.Test;
 
 
+/**
+ * TownGraphManagerStudentTest.java
+ *
+ * JUnit tests for TownGraphManager: adding/removing towns and roads
+ * by name, sorted listings, and shortest routes.
+ *
+ * @author Armel Daryl Kelodjoue Nguetchouang
+ */
 public class TownGraphManagerStudentTest {
 	private TownGraphManagerInterface graph;
 	private String[] town;

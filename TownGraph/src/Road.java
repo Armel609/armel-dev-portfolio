@@ -1,6 +1,11 @@
 /**
- * Represents a road connecting two towns in an undirected graph.
- * Implements Comparable<Road> so roads can be sorted by name, weight, and connected towns.
+ * Road.java
+ *
+ * A road (edge) connecting two towns in the undirected road-network graph.
+ * A road from A to B is the same as a road from B to A. Roads sort by name,
+ * then by distance, then by the towns they connect.
+ *
+ * @author Armel Daryl Kelodjoue Nguetchouang
  */
 public class Road implements Comparable<Road> {
 
@@ -45,22 +50,27 @@ public class Road implements Comparable<Road> {
 
     // --- Getters and Setters ---
 
+    /** @return one end of the road */
     public Town getSource() {
         return source;
     }
 
+    /** @param source the new first end of the road */
     public void setSource(Town source) {
         this.source = source;
     }
 
+    /** @return the other end of the road */
     public Town getDestination() {
         return destination;
     }
 
+    /** @param destination the new second end of the road */
     public void setDestination(Town destination) {
         this.destination = destination;
     }
 
+    /** @return the road's distance in miles */
     public int getWeight() {
         return weight;
     }

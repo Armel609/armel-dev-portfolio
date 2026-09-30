@@ -3,9 +3,7 @@
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.util.ArrayList;
-
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -21,6 +19,18 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 
+/**
+ * FXMainPane.java
+ *
+ * The JavaFX window for the TownGraph app. It lets the user add towns and
+ * roads, list them, load a road network from a file, and find the shortest
+ * route between two towns.
+ *
+ * The screen layout was provided as starter code by the CMSC 204 course.
+ * Armel Daryl Kelodjoue Nguetchouang fixed its bugs (a crash when no towns
+ * were selected, drop-downs not refreshing), added input validation and
+ * error messages, and added the total trip distance to the route output.
+ */
 public class FXMainPane extends VBox {
 	Label addTownLabel, townNameLabel, addRoadLabel, roadNameLabel, selectTownsForRoadLabel, findConnectionLabel, findConnectionFromLabel, toLabel, distLabel;
 	VBox addTownVBox, addRoadVBox, findConnectionVBox, bottomVBox;
@@ -33,7 +43,7 @@ public class FXMainPane extends VBox {
 	Insets inset, inset2, inset3;
 
 	TownGraphManager graph;
-	private Alert alert = new Alert(AlertType.INFORMATION);
+	private Alert alert = new Alert(AlertType.ERROR);
 	
 	
 	FXMainPane() {
@@ -210,158 +220,149 @@ public class FXMainPane extends VBox {
 
 		getChildren().addAll(addTown, addRoad, findConnectionVBox, bottomHBox);
 		
-		//event handling for buttons
-		displayTownsButton.setOnAction(event -> {
-			ArrayList<String> towns = graph.allTowns();
-			String result = "";
-			for(String element : towns)
-			{
-				result += element+"\n";
+		// ---------------- Button actions ----------------
+
+		displayTownsButton.setOnAction(event -> refreshTownList());
+		displayRoadsButton.setOnAction(event -> refreshRoadList());
+
+		addTownButton.setOnAction(event -> {
+			String townName = addTownTextField.getText().trim();
+			if (townName.isEmpty()) {
+				showError("Town name cannot be empty");
 			}
-			displayTowns.setText(result);
-		});
-		displayRoadsButton.setOnAction(event -> {
-			ArrayList<String> roads = graph.allRoads();
-			String result = "";
-			for(String element : roads)
-			{
-				result += element+"\n";
+			else if (graph.containsTown(townName)) {
+				showError("Town \"" + townName + "\" already exists");
 			}
-			displayRoads.setText(result);
+			else {
+				graph.addTown(townName);
+				addTownTextField.clear();
+				updateComboBoxes();
+				refreshTownList();
+			}
 		});
+
 		addRoadButton.setOnAction(event -> {
-			Town town1;
-			Town town2;
+			String town1 = addSourceTownComboBox.getValue();
+			String town2 = addDestTownComboBox.getValue();
+			String name = addRoadTextField.getText().trim();
+			String distanceText = specifyDistanceTextField.getText().trim();
+
+			int weight;
 			try {
-				town1 = graph.getTown(addSourceTownComboBox.getValue().toString());
-				town2 = graph.getTown(addDestTownComboBox.getValue().toString());
-			} catch (NullPointerException e) {
-				town1 = town2 = null;
-			}
-			String name = addRoadTextField.getText();
-			String strWeight = specifyDistanceTextField.getText();
-			int weight = 0;
-			try {
-				if (!strWeight.equals("")) weight = Integer.parseInt(strWeight);
+				weight = Integer.parseInt(distanceText);
 			}
 			catch (NumberFormatException e) {
 				weight = -1;
 			}
-			if (weight < 0) {
-				alert.setTitle("Error");
-				alert.setHeaderText("Distance must be an integer");
-				alert.showAndWait();
+
+			if (town1 == null || town2 == null) {
+				showError("Select the two towns the road connects");
 			}
-			else if (name.equals("")) {
-				alert.setTitle("Error");
-				alert.setHeaderText("Road name cannot be blank");
-				alert.showAndWait();
+			else if (town1.equals(town2)) {
+				showError("A road must connect two different towns");
 			}
-			else if (town1 !=null && town2!=null) {
-				graph.addRoad(town1.getName(), town2.getName(), weight, name);
+			else if (name.isEmpty()) {
+				showError("Road name cannot be blank");
+			}
+			else if (weight < 0) {
+				showError("Distance must be a whole number of miles (0 or more)");
+			}
+			else {
+				graph.addRoad(town1, town2, weight, name);
 				addSourceTownComboBox.setValue(null);
 				addDestTownComboBox.setValue(null);
-				addRoadTextField.setText("");
-				specifyDistanceTextField.setText("");
-			}
-			else {
-				alert.setTitle("Error");
-				alert.setHeaderText("Must select towns");
-				alert.showAndWait();
+				addRoadTextField.clear();
+				specifyDistanceTextField.clear();
+				refreshRoadList();
 			}
 		});
-		addTownButton.setOnAction(event -> {
-			String townName = addTownTextField.getText();
-			if (townName.equals("")) {
-				alert.setTitle("Error");
-				alert.setHeaderText("Town name cannot be empty");
-				alert.showAndWait();
-			}
-			else if (graph.addTown(townName)){
-				updateComboBoxes();
-				addTownTextField.setText("");
-			}
-			else {
-				alert.setTitle("File Error");
-				alert.setHeaderText("Problem adding town "+townName);
-				alert.showAndWait();
-			}
-		});
+
 		findConnectionButton.setOnAction(event -> {
-			Town town1;
-			Town town2;
-			String result = "";
-			try {
-				town1 = graph.getTown(sourceConnectionComboBox.getValue().toString());
-				town2 = graph.getTown(destConnectionComboBox.getValue().toString());
-			} catch (NullPointerException e) {
-				town1 = town2 = null;
+			String town1 = sourceConnectionComboBox.getValue();
+			String town2 = destConnectionComboBox.getValue();
+			findConnectionTextArea.clear();
+
+			if (town1 == null || town2 == null) {
+				findConnectionTextArea.setText("Select a starting town and a destination town");
+				return;
 			}
-			findConnectionTextArea.setText("");
-			ArrayList<String> path = graph.getPath(town1.getName(), town2.getName());
-			if (town1.equals(town2)){
-				findConnectionTextArea.appendText("Select two different towns");
+			if (town1.equals(town2)) {
+				findConnectionTextArea.setText("Select two different towns");
+				return;
 			}
-			else if (path.isEmpty()){
-				findConnectionTextArea.appendText("You can't get there from here");
+
+			ArrayList<String> path = graph.getPath(town1, town2);
+			if (path.isEmpty()) {
+				findConnectionTextArea.setText("You can't get there from here");
 			}
 			else {
-				for (String s : path){
-					result+=s+"\n";
-					//findConnectionTextArea.appendText(s);
-					findConnectionTextArea.setText(result);
-				}
+				findConnectionTextArea.setText(String.join("\n", path)
+						+ "\n\nTotal distance: " + graph.getPathDistance(town1, town2) + " mi");
 			}
 		});
-		readFileButton.setOnAction(event -> {
-			try {
-				readFile();
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-		});
+
+		readFileButton.setOnAction(event -> readFile());
+
 		exitButton.setOnAction(event -> {
-       	 	Platform.exit();
-       	 	System.exit(0);
+			Platform.exit();
+			System.exit(0);
 		});
-			
 	}
-	//update the ComboBoxes that contain the town names
+
+	/** Shows every town, one per line, in the town list box. */
+	private void refreshTownList() {
+		displayTowns.setText(String.join("\n", graph.allTowns()));
+	}
+
+	/** Shows every road, one per line, in the road list box. */
+	private void refreshRoadList() {
+		displayRoads.setText(String.join("\n", graph.allRoads()));
+	}
+
+	/** Pops up an error dialog with the given message. */
+	private void showError(String message) {
+		alert.setTitle("Error");
+		alert.setHeaderText(message);
+		alert.showAndWait();
+	}
+
+	/** Reloads all four town drop-downs so they list every town in the graph. */
 	public void updateComboBoxes() {
 		ArrayList<String> townList = graph.allTowns();
-		for (String town : townList){
-			addDestTownComboBox.getItems().clear();
-			sourceConnectionComboBox.getItems().clear();
-			destConnectionComboBox.getItems().clear();
-			addSourceTownComboBox.getItems().clear();
+		for (ComboBox<String> box : java.util.List.of(addSourceTownComboBox, addDestTownComboBox,
+				sourceConnectionComboBox, destConnectionComboBox)) {
+			box.getItems().setAll(townList);
 		}
-		for (String town : townList){
-			addDestTownComboBox.getItems().addAll(town);
-			sourceConnectionComboBox.getItems().addAll(town);
-			destConnectionComboBox.getItems().addAll(town);
-			addSourceTownComboBox.getItems().addAll(town); 
-		}	
 	}
-	
-	//Select the file to read the Towns and Roads from
+
+	/**
+	 * Lets the user pick a road file, loads it into the graph, and refreshes
+	 * the drop-downs and lists. Shows an error dialog if the file is missing
+	 * or badly formatted.
+	 */
 	public void readFile() {
 		FileChooser chooser = new FileChooser();
-		File selectedFile = null;
+		chooser.setTitle("Choose a road file (e.g. MD Towns.txt)");
+		chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Text files", "*.txt"));
+		File startDir = new File(System.getProperty("user.dir"));
+		if (startDir.isDirectory())
+			chooser.setInitialDirectory(startDir);
+
+		File selectedFile = chooser.showOpenDialog(getScene() == null ? null : getScene().getWindow());
+		if (selectedFile == null)
+			return;   // user cancelled
+
 		try {
-			selectedFile = chooser.showOpenDialog(null);
-			if(selectedFile != null) {
-				graph.populateTownGraph(selectedFile);
-				}
-			updateComboBoxes();
-		} catch (FileNotFoundException e) {
-			alert.setTitle("File Error");
-			alert.setHeaderText("File not found");
-			alert.showAndWait();
+			graph.populateTownGraph(selectedFile);
 		}
-		catch (IOException e) {
-			alert.setTitle("File Error");
-			alert.setHeaderText("Input error");
-			alert.showAndWait();
+		catch (FileNotFoundException e) {
+			showError("File not found: " + selectedFile.getName());
 		}
+		catch (IllegalArgumentException e) {
+			showError("Could not read file. " + e.getMessage());
+		}
+		updateComboBoxes();
+		refreshTownList();
+		refreshRoadList();
 	}
 }

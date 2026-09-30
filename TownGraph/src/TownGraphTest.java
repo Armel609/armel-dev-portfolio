@@ -1,4 +1,5 @@
-
+// TownGraphTest.java - Instructor JUnit tests for Graph using Town and Road.
+// Provided as starter code by the CMSC 204 course (not modified).
 
 import static org.junit.Assert.*;
 

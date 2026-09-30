@@ -1,5 +1,5 @@
-
-
+// TownGraphManager_GFA_Test.java - Instructor "good-faith attempt" test for TownGraphManager.
+// Provided as starter code by the CMSC 204 course (not modified).
 
 import static org.junit.Assert.*;
 

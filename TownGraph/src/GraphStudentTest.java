@@ -1,6 +1,3 @@
-
-
-
 import static org.junit.Assert.*;
 
 import java.util.ArrayList;
@@ -14,6 +11,14 @@ import org.junit.Before;
 import org.junit.Test;
 
 
+/**
+ * GraphStudentTest.java
+ *
+ * JUnit tests for the Graph class: adding/removing towns and roads,
+ * edge lookups, and Dijkstra shortest paths.
+ *
+ * @author Armel Daryl Kelodjoue Nguetchouang
+ */
 public class GraphStudentTest {
 	private GraphInterface<Town,Road> graph;
 	private Town[] town;

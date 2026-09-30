@@ -1,272 +1,376 @@
-/**
- * Class: CMSC204 
- * Instructor: Gary Thai
- * Description: 
- * This project implements a graph-based application that models a network
- * of towns and roads. The system uses a Graph data structure to represent
- * towns as vertices and roads as edges connecting them.
- * 
- * The Town class represents each location in the network and implements
- * Comparable to allow sorting and comparison based on town names.
- * 
- * The Road class represents connections between towns, storing the
- * distance and name of each road. It also implements Comparable and
- * treats roads as undirected edges.
- * 
- * The Graph class implements the GraphInterface and manages the overall
- * structure using vertices and edges. It supports operations such as
- * adding towns and roads, checking connections, and computing the
- * shortest path between towns using Dijkstra’s Shortest Path algorithm.
- * 
- * The TownGraphManager class serves as a higher-level interface to the
- * graph, allowing users to add towns and roads, read data from files,
- * and find the shortest path between two towns.
- * 
- * The application also includes JUnit test classes to verify the
- * functionality of all components and ensure correctness of the
- * implementation.
- * 
- * Due: 5/3/2026
- * Platform/compiler: Eclipse / javac
- * 
- * I pledge that I have completed the programming assignment 
- * independently. I have not copied code from any student or 
- * external source, nor have I shared my code with others.
- *
- * Name: Armel Daryl Kelodjoue Nguetchouang
- */
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.PriorityQueue;
+import java.util.Set;
 
+/**
+ * Graph.java
+ *
+ * An undirected, weighted graph of {@link Town} vertices connected by
+ * {@link Road} edges, stored as an adjacency list.
+ *
+ * Each town maps to the list of roads that touch it. Because the graph is
+ * undirected, a road between A and B is stored in both A's list and B's list.
+ *
+ * Shortest paths are computed with Dijkstra's algorithm using a binary-heap
+ * priority queue, which runs in O((V + E) log V) time.
+ *
+ * @author Armel Daryl Kelodjoue Nguetchouang
+ */
 public class Graph implements GraphInterface<Town, Road>
 {
-	private Map<Town, List<Road>> adjacencyList;
-	private Map<Town, Integer> distances;
-	private Map<Town, Town> predecessors;
-	
+	/** Every town in the graph, mapped to the roads that touch it. */
+	private final Map<Town, List<Road>> adjacencyList = new HashMap<>();
+
+	/** Shortest known distance from the last Dijkstra source to each town. */
+	private Map<Town, Integer> distances = new HashMap<>();
+
 	/**
-	 * Constructor
+	 * The road used to reach each town on its shortest path from the last
+	 * Dijkstra source. Storing the road (not just the previous town) means the
+	 * path always reports the exact road Dijkstra chose, even when two towns
+	 * are joined by more than one road.
 	 */
+	private Map<Town, Road> previousRoad = new HashMap<>();
+
+	/** The source town used by the most recent Dijkstra run. */
+	private Town lastSource;
+
+	/** Creates an empty graph. */
 	public Graph()
 	{
-		adjacencyList = new HashMap<>();
 	}
 
-	
+	// ------------------------------------------------------------------
+	// Vertices
+	// ------------------------------------------------------------------
+
+	/**
+	 * Adds a town to the graph if it is not already present.
+	 *
+	 * @param v the town to add
+	 * @return true if the town was added, false if it was already in the graph
+	 * @throws NullPointerException if the town is null
+	 */
 	@Override
-	public Road getEdge(Town sourceVertex, Town destinationVertex) 
+	public boolean addVertex(Town v)
 	{
+		if (v == null)
+			throw new NullPointerException("Vertex cannot be null");
+		if (adjacencyList.containsKey(v))
+			return false;
+
+		adjacencyList.put(v, new ArrayList<>());
+		invalidatePaths();
+		return true;
+	}
+
+	/**
+	 * @param v the town to look for
+	 * @return true if the town is in the graph; false if not or if v is null
+	 */
+	@Override
+	public boolean containsVertex(Town v)
+	{
+		return v != null && adjacencyList.containsKey(v);
+	}
+
+	/**
+	 * Removes a town and every road that touches it.
+	 *
+	 * @param v the town to remove
+	 * @return true if the town was in the graph, false otherwise (or if null)
+	 */
+	@Override
+	public boolean removeVertex(Town v)
+	{
+		if (!containsVertex(v))
+			return false;
+
+		// Remove each touching road from the neighbor's list as well.
+		for (Road road : adjacencyList.get(v))
+		{
+			Town neighbor = road.getOtherTown(v);
+			if (!neighbor.equals(v))
+				adjacencyList.get(neighbor).remove(road);
+		}
+		adjacencyList.remove(v);
+		invalidatePaths();
+		return true;
+	}
+
+	/**
+	 * @return a set view of all towns in the graph (backed by the graph)
+	 */
+	@Override
+	public Set<Town> vertexSet()
+	{
+		return adjacencyList.keySet();
+	}
+
+	// ------------------------------------------------------------------
+	// Edges
+	// ------------------------------------------------------------------
+
+	/**
+	 * Creates a road between two towns that are already in the graph.
+	 *
+	 * @param sourceVertex      one end of the road
+	 * @param destinationVertex the other end of the road
+	 * @param weight            length of the road in miles
+	 * @param description       name of the road
+	 * @return the newly created road
+	 * @throws NullPointerException     if either town is null
+	 * @throws IllegalArgumentException if either town is not in the graph
+	 */
+	@Override
+	public Road addEdge(Town sourceVertex, Town destinationVertex, int weight, String description)
+	{
+		if (sourceVertex == null || destinationVertex == null)
+			throw new NullPointerException("Vertices cannot be null");
+		if (!adjacencyList.containsKey(sourceVertex) || !adjacencyList.containsKey(destinationVertex))
+			throw new IllegalArgumentException("Both vertices must be in the graph");
+
+		Road road = new Road(sourceVertex, destinationVertex, weight, description);
+		adjacencyList.get(sourceVertex).add(road);
+		if (!sourceVertex.equals(destinationVertex))  // don't store a self-loop twice
+			adjacencyList.get(destinationVertex).add(road);
+		invalidatePaths();
+		return road;
+	}
+
+	/**
+	 * Returns a road connecting the two towns (in either direction).
+	 *
+	 * @param sourceVertex      one end of the road
+	 * @param destinationVertex the other end of the road
+	 * @return the connecting road, or null if there is none or a town is
+	 *         null / not in the graph
+	 */
+	@Override
+	public Road getEdge(Town sourceVertex, Town destinationVertex)
+	{
+		if (!containsVertex(sourceVertex) || destinationVertex == null)
+			return null;
+
 		for (Road road : adjacencyList.get(sourceVertex))
 		{
-			if (road.getSource().equals(destinationVertex) || road.getDestination().equals(destinationVertex))
+			if (road.contains(destinationVertex))
+				return road;
+		}
+		return null;
+	}
+
+	/**
+	 * @return true if a road connects the two towns (in either direction)
+	 */
+	@Override
+	public boolean containsEdge(Town sourceVertex, Town destinationVertex)
+	{
+		return getEdge(sourceVertex, destinationVertex) != null;
+	}
+
+	/**
+	 * @return every road in the graph (each road appears once)
+	 */
+	@Override
+	public Set<Road> edgeSet()
+	{
+		Set<Road> edges = new HashSet<>();
+		for (List<Road> roads : adjacencyList.values())
+			edges.addAll(roads);
+		return edges;
+	}
+
+	/**
+	 * @param vertex the town whose roads are wanted
+	 * @return every road touching the town (empty if it has none)
+	 * @throws NullPointerException     if the town is null
+	 * @throws IllegalArgumentException if the town is not in the graph
+	 */
+	@Override
+	public Set<Road> edgesOf(Town vertex)
+	{
+		if (vertex == null)
+			throw new NullPointerException("Vertex is null");
+		if (!adjacencyList.containsKey(vertex))
+			throw new IllegalArgumentException("Vertex not found");
+
+		return new HashSet<>(adjacencyList.get(vertex));
+	}
+
+	/**
+	 * Removes a road between two towns.
+	 * The weight is only checked if it is greater than -1, and the name is
+	 * only checked if it is not null.
+	 *
+	 * @param sourceVertex      one end of the road
+	 * @param destinationVertex the other end of the road
+	 * @param weight            road length to match, or -1 to match any
+	 * @param description       road name to match, or null to match any
+	 * @return the removed road, or null if no matching road was found
+	 */
+	@Override
+	public Road removeEdge(Town sourceVertex, Town destinationVertex, int weight, String description)
+	{
+		if (!containsVertex(sourceVertex) || !containsVertex(destinationVertex))
+			return null;
+
+		for (Road road : adjacencyList.get(sourceVertex))
+		{
+			boolean sameTowns  = road.contains(destinationVertex);
+			boolean sameWeight = weight <= -1 || road.getWeight() == weight;
+			boolean sameName   = description == null || road.getName().equals(description);
+
+			if (sameTowns && sameWeight && sameName)
 			{
+				adjacencyList.get(sourceVertex).remove(road);
+				adjacencyList.get(destinationVertex).remove(road);
+				invalidatePaths();
 				return road;
 			}
 		}
 		return null;
 	}
 
+	// ------------------------------------------------------------------
+	// Shortest path (Dijkstra)
+	// ------------------------------------------------------------------
+
 	/**
-	 * Creates a new edge in this graph, going from the source vertex to the
-     * target vertex, and returns the created edge. 
-     * The source and target vertices must already be contained in this
-     * graph. If they are not found in graph IllegalArgumentException is
-     * thrown.
-     * @param sourceVertex source vertex of the edge.
-     * @param destinationVertex target vertex of the edge.
-     * @param weight weight of the edge
-     * @param description description for edge
-     * @return The newly created edge if added to the graph, otherwise null.
-     * @throws IllegalArgumentException if source or target vertices are not
-     * found in the graph.
-     * @throws NullPointerException if any of the specified vertices is null.
+	 * Finds the shortest route between two towns.
+	 * Each entry has the form "Town_A via Road_X to Town_B 5 mi".
+	 *
+	 * @param sourceVertex      starting town
+	 * @param destinationVertex ending town
+	 * @return the steps of the route in order; an empty list if there is no
+	 *         route, a town is not in the graph, or both towns are the same
 	 */
 	@Override
-	public Road addEdge(Town sourceVertex, Town destinationVertex, int weight, String description) 
+	public ArrayList<String> shortestPath(Town sourceVertex, Town destinationVertex)
 	{
-		if (sourceVertex == null || destinationVertex == null)
-			throw new NullPointerException("Vertices cannot be null");
-		if (!adjacencyList.containsKey(sourceVertex) || !adjacencyList.containsKey(destinationVertex))
-			throw new IllegalArgumentException("Both vertices must be in the graph");
-		
-		Road road = new Road(sourceVertex, destinationVertex, weight, description);
-		adjacencyList.get(sourceVertex).add(road);
-		adjacencyList.get(destinationVertex).add(road);
-		return road;
-	}
-
-	/**
-     * Adds the specified vertex to this graph if not already present. More
-     * formally, adds the specified vertex, v, to this graph if
-     * this graph contains no vertex u such that
-     * u.equals(v). If this graph already contains such vertex, the call
-     * leaves this graph unchanged and returns false. In combination
-     * with the restriction on constructors, this ensures that graphs never
-     * contain duplicate vertices.
-     * @param v vertex to be added to this graph.
-     * @return true if this graph did not already contain the specified
-     * vertex.
-     * @throws NullPointerException if the specified vertex is null.
-     */
-	@Override
-	public boolean addVertex(Town v) 
-	{
-		if (v == null)
-			throw new NullPointerException("Vertex cannot be null");
-		if (adjacencyList.containsKey(v))
-			return false;
-		adjacencyList.put(v, new ArrayList<>());
-		
-		return true;
-	}
-
-	/**
-     * Returns true if and only if this graph contains an edge going
-     * from the source vertex to the target vertex. In undirected graphs the
-     * same result is obtained when source and target are inverted. If any of
-     * the specified vertices does not exist in the graph, or if is
-     * null, returns false.
-     * @param sourceVertex source vertex of the edge.
-     * @param destinationVertex target vertex of the edge.
-     * @return true if this graph contains the specified edge.
-     */
-	@Override
-	public boolean containsEdge(Town sourceVertex, Town destinationVertex) 
-	{
-		return getEdge(sourceVertex, destinationVertex) != null;
-	}
-
-	
-	@Override
-	public boolean containsVertex(Town v) 
-	{
-		return adjacencyList.containsKey(v);
-	}
-
-	
-	@Override
-	public Set<Road> edgeSet() 
-	{
-		Set<Road> edges = new HashSet<>();
-		for (List<Road> roads : adjacencyList.values())
-		{
-			edges.addAll(roads);
-		}
-		return edges;
-	}
-
-	
-	@Override
-	public Set<Road> edgesOf(Town vertex) 
-	{
-		if (vertex == null)
-		{
-			throw new NullPointerException("Vertex is null");
-		}
-		else if (!adjacencyList.containsKey(vertex))
-		{
-			throw new IllegalArgumentException("Vertex not found");
-		}
-		
-		return new HashSet<>(adjacencyList.get(vertex));
-	}
-
-	@Override
-	public Road removeEdge(Town sourceVertex, Town destinationVertex, int weight, String description) 
-	{
-		Road removeRoad = new Road(sourceVertex, destinationVertex, weight, description);
-		List<Road> sourceEdges = adjacencyList.get(sourceVertex);
-		List<Road> destinationEdges = adjacencyList.get(destinationVertex);
-		
-		if (sourceEdges != null && sourceEdges.remove(removeRoad))
-		{
-			destinationEdges.remove(removeRoad);
-			return removeRoad;
-		}
-		return null;
-	}
-
-	
-	@Override
-	public boolean removeVertex(Town v) 
-	{
-		if (!adjacencyList.containsKey(v))
-			return false;
-		
-		for (Road road : new ArrayList<>(adjacencyList.get(v)))
-		{
-			removeEdge(road.getSource(), road.getDestination(), road.getWeight(), road.getName());
-		}
-		adjacencyList.remove(v);
-		return true;
-	}
-
-	
-	@Override
-	public Set<Town> vertexSet() 
-	{
-		return adjacencyList.keySet();
-	}
-
-	
-	@Override
-	public ArrayList<String> shortestPath(Town sourceVertex, Town destinationVertex) 
-	{
-		dijkstraShortestPath(sourceVertex);
 		ArrayList<String> path = new ArrayList<>();
-		Town step = destinationVertex;
-		
-		if (distances.get(step) == Integer.MAX_VALUE)
-		{
+		if (!containsVertex(sourceVertex) || !containsVertex(destinationVertex))
 			return path;
-		}
-		
-		while (step != null && predecessors.get(step) != null)
+
+		// Reuse the previous Dijkstra run if the graph and source haven't changed.
+		if (!sourceVertex.equals(lastSource))
+			dijkstraShortestPath(sourceVertex);
+
+		if (distances.get(destinationVertex) == Integer.MAX_VALUE)
+			return path;   // unreachable
+
+		// Walk backwards from the destination, following the road used to
+		// reach each town, then prepend so the list reads start -> finish.
+		Town step = destinationVertex;
+		while (!step.equals(sourceVertex))
 		{
-			Town prev = predecessors.get(step);
-			Road road = getEdge(prev, step);
-			
-			if (road != null)
-			{
-				path.add(0, prev.getName() + " via " + road.getName() + " to " + step.getName() + " " + road.getWeight() + " mi");
-			}
+			Road road = previousRoad.get(step);
+			Town prev = road.getOtherTown(step);
+			path.add(prev.getName() + " via " + road.getName() + " to "
+					+ step.getName() + " " + road.getWeight() + " mi");
 			step = prev;
 		}
+		Collections.reverse(path);
 		return path;
 	}
 
-	
+	/**
+	 * Runs Dijkstra's algorithm from the given town, filling in the shortest
+	 * distance to every town and the road used to reach it.
+	 *
+	 * Uses "lazy deletion": instead of removing and re-adding a town in the
+	 * priority queue when its distance improves (O(n) per update), a new
+	 * entry is added and stale entries are skipped when polled.
+	 *
+	 * @param sourceVertex the town to measure distances from
+	 */
 	@Override
-	public void dijkstraShortestPath(Town sourceVertex) 
+	public void dijkstraShortestPath(Town sourceVertex)
 	{
 		distances = new HashMap<>();
-		predecessors = new HashMap<>();
-		PriorityQueue<Town> pq = new PriorityQueue<>(Comparator.comparingInt(distances::get));
-		
+		previousRoad = new HashMap<>();
+		lastSource = null;
+		if (!containsVertex(sourceVertex))
+			return;
+
 		for (Town town : adjacencyList.keySet())
-		{
 			distances.put(town, Integer.MAX_VALUE);
-			predecessors.put(town, null);
-		}
 		distances.put(sourceVertex, 0);
-		pq.add(sourceVertex);
-		
-		while(!pq.isEmpty())
+
+		// Queue entries are {town, distance when queued}, ordered by distance.
+		PriorityQueue<QueueEntry> queue = new PriorityQueue<>();
+		queue.add(new QueueEntry(sourceVertex, 0));
+		Set<Town> visited = new HashSet<>();
+
+		while (!queue.isEmpty())
 		{
-			Town current = pq.poll();
-			
+			QueueEntry entry = queue.poll();
+			Town current = entry.town;
+			if (!visited.add(current))
+				continue;   // stale entry: a shorter distance was already processed
+
 			for (Road road : adjacencyList.get(current))
 			{
-				Town neighbor = road.getSource().equals(current) ? road.getDestination() : road.getSource();
+				Town neighbor = road.getOtherTown(current);
+				int newDist = entry.distance + road.getWeight();
 
-				int newDist = distances.get(current) + road.getWeight();				
 				if (newDist < distances.get(neighbor))
 				{
 					distances.put(neighbor, newDist);
-					predecessors.put(neighbor, current);
-					pq.remove(neighbor);
-					pq.add(neighbor);
+					previousRoad.put(neighbor, road);
+					queue.add(new QueueEntry(neighbor, newDist));
 				}
 			}
+		}
+		lastSource = sourceVertex;
+	}
+
+	/**
+	 * Returns the total length in miles of the shortest route between two
+	 * towns.
+	 *
+	 * @param sourceVertex      starting town
+	 * @param destinationVertex ending town
+	 * @return total miles, or -1 if there is no route
+	 */
+	public int shortestDistance(Town sourceVertex, Town destinationVertex)
+	{
+		if (!containsVertex(sourceVertex) || !containsVertex(destinationVertex))
+			return -1;
+		if (!sourceVertex.equals(lastSource))
+			dijkstraShortestPath(sourceVertex);
+
+		int dist = distances.get(destinationVertex);
+		return dist == Integer.MAX_VALUE ? -1 : dist;
+	}
+
+	/** Forgets the cached Dijkstra results; called whenever the graph changes. */
+	private void invalidatePaths()
+	{
+		lastSource = null;
+	}
+
+	/** A town waiting in Dijkstra's priority queue, with its distance at the time. */
+	private static class QueueEntry implements Comparable<QueueEntry>
+	{
+		final Town town;
+		final int distance;
+
+		QueueEntry(Town town, int distance)
+		{
+			this.town = town;
+			this.distance = distance;
+		}
+
+		@Override
+		public int compareTo(QueueEntry other)
+		{
+			return Integer.compare(distance, other.distance);
 		}
 	}
 }

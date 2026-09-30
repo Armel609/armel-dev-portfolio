@@ -4,6 +4,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+/**
+ * TownStudentTest.java
+ *
+ * JUnit tests for the Town class and basic Graph operations on towns.
+ *
+ * @author Armel Daryl Kelodjoue Nguetchouang
+ */
 class TownStudentTest {
 
 	@BeforeEach

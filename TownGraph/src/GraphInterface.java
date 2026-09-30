@@ -1,4 +1,5 @@
-
+// GraphInterface.java - The graph interface (ADT) that Graph implements.
+// Provided as starter code by the CMSC 204 course (not modified).
 
 import java.io.File;
 import java.util.*;

@@ -1,5 +1,5 @@
-
-
+// TownGraphManagerTest.java - Instructor JUnit tests for TownGraphManager.
+// Provided as starter code by the CMSC 204 course (not modified).
 
 import static org.junit.Assert.*;
 
