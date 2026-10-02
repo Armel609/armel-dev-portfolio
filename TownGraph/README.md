@@ -2,7 +2,7 @@
 
 **Author:** Armel Daryl Kelodjoue Nguetchouang
 **Language:** Java 17+ (JavaFX for the graphical version)
-**Topics:** graphs, adjacency lists, Dijkstra's shortest-path algorithm, priority queues, JUnit testing
+**Topics:** graphs, adjacency lists, Dijkstra's shortest-path algorithm, priority queues
 
 TownGraph models a road network as a **weighted, undirected graph**. Towns are the
 vertices and roads are the edges, and each road's weight is its length in miles.
@@ -101,20 +101,6 @@ java --module-path "$FX" --add-modules javafx.controls -cp ../out DriverFX
    For `DriverFX`, add these VM arguments in the run configuration:
    `--module-path "PATH_TO_FX" --add-modules javafx.controls`
 
-### 4. Run the tests (optional)
-
-The project has 78 JUnit tests, and all of them pass. In Eclipse, right-click the `src` folder and choose
-**Run As → JUnit Test**. From the command line, download
-[`junit-platform-console-standalone-1.11.4.jar`](https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar),
-[`junit-4.13.2.jar`](https://repo1.maven.org/maven2/junit/junit/4.13.2/junit-4.13.2.jar) and
-[`hamcrest-core-1.3.jar`](https://repo1.maven.org/maven2/org/hamcrest/hamcrest-core/1.3/hamcrest-core-1.3.jar)
-into `TownGraph/lib`. Then run these from `TownGraph/src` (on Windows, use `;` instead of `:` between the classpath entries):
-
-```
-javac -d ../out -cp "../lib/*" Town.java Road.java GraphInterface.java Graph.java TownGraphManagerInterface.java TownGraphManager.java *Test.java
-java -cp "../out:../lib/*" org.junit.platform.console.ConsoleLauncher execute --scan-classpath ../out
-```
-
 ---
 
 ## How it works
@@ -133,8 +119,7 @@ TownGraph/
 │   ├── ConsoleDriver.java           Text-based app (no JavaFX)
 │   ├── DriverFX.java                Starts the JavaFX app
 │   ├── FXMainPane.java              The JavaFX window and its buttons
-│   ├── MD Towns.txt, US Towns.txt   Sample maps
-│   └── *Test.java                   JUnit tests
+│   └── MD Towns.txt, US Towns.txt   Sample maps
 └── doc/                             Javadoc (open doc/index.html in a browser)
 ```
 
@@ -216,10 +201,9 @@ this format and load them in either version of the app.
 ## Credits
 
 Designed and implemented by **Armel Daryl Kelodjoue Nguetchouang**. This includes `Town`, `Road`,
-`Graph` (with Dijkstra's algorithm), `TownGraphManager`, `ConsoleDriver`, and the student
-JUnit tests.
+`Graph` (with Dijkstra's algorithm), `TownGraphManager`, and `ConsoleDriver`.
 
 This started as a data-structures project for CMSC 204 at Montgomery College. The graph interfaces
-(`GraphInterface`, `TownGraphManagerInterface`), the instructor test classes, and the original
+(`GraphInterface`, `TownGraphManagerInterface`) and the original
 JavaFX screen layout (`FXMainPane`, `DriverFX`) were provided as starter code. I extended
 `FXMainPane` with bug fixes, input validation, and total trip distance.
